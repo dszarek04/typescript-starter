@@ -27,10 +27,10 @@ pipeline {
         }
         stage('Smoke Test') {
             steps {
-                echo 'Performing smoke test...'
-                sleep 10 // NestJS potrzebuje chwili na start
+                echo 'Performing smoke test via Docker...'
+                sleep 10
                 
-                sh "curl -f http://localhost:3000 || (docker logs ${CONTAINER_NAME} && exit 1)"
+                sh "docker run --rm --network host alpine sh -c 'apk add --no-cache curl && curl -f http://localhost:3000'"
             }
         }
     }
