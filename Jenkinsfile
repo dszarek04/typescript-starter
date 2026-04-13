@@ -22,19 +22,15 @@ pipeline {
                 sh "docker stop ${CONTAINER_NAME} || true"
                 sh "docker rm ${CONTAINER_NAME} || true"
                 
-                sh "docker run -d --name ${CONTAINER_NAME} ${IMAGE_NAME}:${BUILD_NUMBER}"
+                sh "docker run -d --name ${CONTAINER_NAME} --network host ${IMAGE_NAME}:${BUILD_NUMBER}"
             }
         }
         stage('Smoke Test') {
             steps {
                 echo 'Performing smoke test...'
-                sleep 7
+                sleep 10 // NestJS potrzebuje chwili na start
                 
-                script {
-                    def containerIp = sh(script: "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME}", returnStdout: true).trim()
-                    echo "Container IP is: ${containerIp}"
-                    sh "curl -f http://${containerIp}:3000 || (docker logs ${CONTAINER_NAME} && exit 1)"
-                }
+                sh "curl -f http://localhost:3000 || (docker logs ${CONTAINER_NAME} && exit 1)"
             }
         }
     }
