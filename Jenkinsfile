@@ -19,20 +19,22 @@ pipeline {
         stage('Deploy (Integration)') {
             steps {
                 echo 'Deploying container for integration testing...'
-                // Zatrzymujemy poprzedni kontener, jeśli istnieje
                 sh "docker stop ${CONTAINER_NAME} || true"
                 sh "docker rm ${CONTAINER_NAME} || true"
-                // Uruchamiamy nowy kontener na porcie 3000
-                sh "docker run -d --name ${CONTAINER_NAME} -p 3000:3000 ${IMAGE_NAME}:${BUILD_NUMBER}"
+                
+                sh "docker run -d --name ${CONTAINER_NAME} ${IMAGE_NAME}:${BUILD_NUMBER}"
             }
         }
         stage('Smoke Test') {
             steps {
                 echo 'Performing smoke test...'
-                // Czekamy chwilę, aby aplikacja się uruchomiła
-                sleep 5
-                // Sprawdzamy czy odpowiada (Status 200)
-                sh "curl -f http://localhost:3000 || (docker logs ${CONTAINER_NAME} && exit 1)"
+                sleep 7
+                
+                script {
+                    def containerIp = sh(script: "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME}", returnStdout: true).trim()
+                    echo "Container IP is: ${containerIp}"
+                    sh "curl -f http://${containerIp}:3000 || (docker logs ${CONTAINER_NAME} && exit 1)"
+                }
             }
         }
     }
