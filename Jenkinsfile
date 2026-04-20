@@ -39,16 +39,20 @@ pipeline {
         stage('Deploy (Sandbox)') {
             steps {
                 echo 'Deploying to sandbox container...'
+                // Czyścimy oba możliwe kontenery (stary z lab 6 i nowy z lab 7)
+                sh "docker stop nestjs-instance || true"
+                sh "docker rm nestjs-instance || true"
                 sh "docker stop ${CONTAINER_NAME} || true"
                 sh "docker rm ${CONTAINER_NAME} || true"
-                sh "docker run -d --name ${CONTAINER_NAME} -p 3000:3000 ${IMAGE_NAME}:${BUILD_NUMBER}"
+                
+                sh "docker run -d --name ${CONTAINER_NAME} -p 3005:3000 ${IMAGE_NAME}:${BUILD_NUMBER}"
             }
         }
         stage('Verification (Smoke Test)') {
             steps {
                 echo 'Verifying deployment...'
                 sleep 5
-                sh "curl -f http://localhost:3000 || (docker logs ${CONTAINER_NAME} && exit 1)"
+                sh "curl -f http://localhost:3005 || (docker logs ${CONTAINER_NAME} && exit 1)"
             }
         }
     }
