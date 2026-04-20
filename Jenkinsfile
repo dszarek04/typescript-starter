@@ -2,43 +2,65 @@ pipeline {
     agent any
     environment {
         IMAGE_NAME = "nestjs-app-ds419547"
-        CONTAINER_NAME = "nestjs-instance"
+        BUILDER_IMAGE = "nestjs-builder"
+        CONTAINER_NAME = "nestjs-instance-7"
     }
     stages {
+        stage('Clean Workspace') {
+            steps {
+                echo 'Cleaning workspace...'
+                deleteDir()
+            }
+        }
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        stage('Build & Test Image') {
+        stage('Build Builder Image') {
             steps {
-                echo 'Building and testing image...'
+                echo 'Creating Builder Image (BLDR)...'
+                // Budujemy tylko pierwszy etap Dockerfile (target: build)
+                sh "docker build --target build -t ${BUILDER_IMAGE}:${BUILD_NUMBER} ."
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Running tests in builder image...'
+                sh "docker run --rm ${BUILDER_IMAGE}:${BUILD_NUMBER} npm test"
+            }
+        }
+        stage('Build Runtime Image') {
+            steps {
+                echo 'Creating final Runtime Image...'
                 sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ."
             }
         }
-        stage('Deploy (Integration)') {
+        stage('Deploy (Sandbox)') {
             steps {
-                echo 'Deploying container for integration testing...'
+                echo 'Deploying to sandbox container...'
                 sh "docker stop ${CONTAINER_NAME} || true"
                 sh "docker rm ${CONTAINER_NAME} || true"
-                
-                sh "docker run -d --name ${CONTAINER_NAME} --network host ${IMAGE_NAME}:${BUILD_NUMBER}"
+                sh "docker run -d --name ${CONTAINER_NAME} -p 3000:3000 ${IMAGE_NAME}:${BUILD_NUMBER}"
             }
         }
-        stage('Smoke Test') {
+        stage('Verification (Smoke Test)') {
             steps {
-                echo 'Performing smoke test via Docker...'
-                sleep 10
-                
-                sh "docker run --rm --network host alpine sh -c 'apk add --no-cache curl && curl -f http://localhost:3000'"
+                echo 'Verifying deployment...'
+                sleep 5
+                sh "curl -f http://localhost:3000 || (docker logs ${CONTAINER_NAME} && exit 1)"
             }
         }
     }
     post {
         always {
-            echo 'Collecting logs as artifacts...'
-            sh "docker logs ${CONTAINER_NAME} > full-build-log-${BUILD_NUMBER}.txt"
-            archiveArtifacts artifacts: "*.txt", fingerprint: true
+            echo 'Archiving logs and cleaning up...'
+            sh "docker logs ${CONTAINER_NAME} > app-logs-${BUILD_NUMBER}.log"
+            archiveArtifacts artifacts: "*.log", fingerprint: true
+            // sh "docker stop ${CONTAINER_NAME} || true"
+        }
+        success {
+            echo 'Pipeline finished successfully!'
         }
     }
 }
